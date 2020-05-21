@@ -6,7 +6,7 @@ def login(s):
     # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能
     url = "http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin"
     body = {
-        "Account": "15812345678",
+        "Account": "18111611826",
         "Pwd": "123456"
     }
 
