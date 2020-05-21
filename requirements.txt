@@ -1,2 +1,4 @@
 allure-pytest==2.8.6
 pytest==4.5.0
+pytest-html==1.19.0
+PyYAML==3.12
