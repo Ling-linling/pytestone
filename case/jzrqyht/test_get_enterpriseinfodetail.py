@@ -53,7 +53,6 @@ def test_get_enterpriseinfodetail_42(login_fix, test_input, expect):
     res = jzrqyht_api(login_fix).get_enterpriseinfodetail(enterpriseId=test_input)
     if expect.get("Message") != None:
         assert res["Message"] == expect["Message"]
-        assert res["MessageDetail"] == expect["MessageDetail"]
     else:
         assert res["msg"] == expect["msg"]
         assert res["code"] == expect["code"]
@@ -70,4 +69,3 @@ def test_get_enterpriseinfodetail_44(login_fix, enterpriseId=2147483648):
     '''查询企业中心的用户信息：params传2147483648大小的enterpriseId，可以查询到企业详情'''
     res = jzrqyht_api(login_fix).get_enterpriseinfodetail(enterpriseId)
     assert res["Message"] == "请求无效。"
-    assert res["MessageDetail"] == "对于“JZRZPWebAPI.Controllers.Company.EnterpriseInfoController”中方法“JZR.Model.PublicModel`1[JZRZP.Model.EnterpriseInfoReturn] GetEnterpriseInfoDetail(Int32)”的不可以为 null 的类型“System.Int32”的参数“enterpriseId”，参数字典包含一个 null 项。可选参数必须为引用类型、可以为 null 的类型或声明为可选参数。"
