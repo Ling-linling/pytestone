@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <style>body {
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 12px;
+	min-width: 1200px;
+	color: #999;
+}
+
+h1 {
+	font-size: 24px;
+	color: black;
+}
+
+h2 {
+	font-size: 16px;
+	color: black;
+}
+
+p {
+    color: black;
+}
+
+a {
+	color: #999;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+/******************************
+ * SUMMARY INFORMATION
+ ******************************/
+
+#environment td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+}
+
+#environment tr:nth-child(odd) {
+	background-color: #f6f6f6;
+}
+
+/******************************
+ * TEST RESULT COLORS
+ ******************************/
+span.passed, .passed .col-result {
+	color: green;
+}
+span.skipped, span.xfailed, span.rerun, .skipped .col-result, .xfailed .col-result, .rerun .col-result {
+	color: orange;
+}
+span.error, span.failed, span.xpassed, .error .col-result, .failed .col-result, .xpassed .col-result  {
+	color: red;
+}
+
+
+/******************************
+ * RESULTS TABLE
+ *
+ * 1. Table Layout
+ * 2. Extra
+ * 3. Sorting items
+ *
+ ******************************/
+
+/*------------------
+ * 1. Table Layout
+ *------------------*/
+
+#results-table {
+	border: 1px solid #e6e6e6;
+	color: #999;
+	font-size: 12px;
+	width: 100%
+}
+
+#results-table th, #results-table td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+	text-align: left
+}
+#results-table th {
+	font-weight: bold
+}
+
+/*------------------
+ * 2. Extra
+ *------------------*/
+
+.log:only-child {
+	height: inherit
+}
+.log {
+	background-color: #e6e6e6;
+	border: 1px solid #e6e6e6;
+	color: black;
+	display: block;
+	font-family: "Courier New", Courier, monospace;
+	height: 230px;
+	overflow-y: scroll;
+	padding: 5px;
+	white-space: pre-wrap
+}
+div.image {
+	border: 1px solid #e6e6e6;
+	float: right;
+	height: 240px;
+	margin-left: 5px;
+	overflow: hidden;
+	width: 320px
+}
+div.image img {
+	width: 320px
+}
+.collapsed {
+	display: none;
+}
+.expander::after {
+	content: " (show details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+.collapser::after {
+	content: " (hide details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+
+/*------------------
+ * 3. Sorting items
+ *------------------*/
+.sortable {
+	cursor: pointer;
+}
+
+.sort-icon {
+	font-size: 0px;
+	float: left;
+	margin-right: 5px;
+	margin-top: 5px;
+	/*triangle*/
+	width: 0;
+	height: 0;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+}
+
+.inactive .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #E6E6E6;
+}
+
+.asc.active .sort-icon {
+	/*finish triangle*/
+	border-bottom: 8px solid #999;
+}
+
+.desc.active .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #999;
+}
+</style></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var collapsed = get_query_parameter('collapsed') || 'Passed';
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function get_query_parameter(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    toggle_sort_states(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+    var multiplier = reversed ? -1 : 1;
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+        return multiplier * (key_a >= key_b ? 1 : -1);
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 19-May-2020 at 14:02:37 by<a href="https://pypi.python.org/pypi/pytest-html"> pytest-html</a> v1.19.0</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>D:\Program Files\Java\jdk1.8.0_151</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{&apos;pytest&apos;: &apos;4.5.0&apos;, &apos;py&apos;: &apos;1.8.0&apos;, &apos;pluggy&apos;: &apos;0.13.1&apos;}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-7-6.1.7601-SP1</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{&apos;allure-pytest&apos;: &apos;2.8.6&apos;, &apos;html&apos;: &apos;1.19.0&apos;, &apos;metadata&apos;: &apos;1.8.0&apos;}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.6.0</td></tr></table>
+    <h2>Summary</h2>
+    <p>4 tests ran in 1.62 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">0 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">4 failed</span>, <input checked="true" class="filter" data-test-result="error" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">11 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrgg/test_get_industryinfosinglealllist.py::test_get_industryinfosinglealllist_45::setup</td>
+          <td class="col-duration">0.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">@pytest.fixture(scope=&quot;module&quot;)<br/>    def login_fix():<br/>        &#x27;&#x27;&#x27;自定义一个前置的操作&#x27;&#x27;&#x27;<br/>        print(&quot;先登陆&quot;)<br/>        s = requests.session()<br/>&gt;       login(s)<br/><br/>conftest.py:10: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x00000000044C1358&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/>---------------------------- Captured stdout setup -----------------------------<br/>先登陆
+</div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrgg/test_newgetbykey.py::test_newgetbykey_47::setup</td>
+          <td class="col-duration">0.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">@pytest.fixture(scope=&quot;module&quot;)<br/>    def login_fix():<br/>        &#x27;&#x27;&#x27;自定义一个前置的操作&#x27;&#x27;&#x27;<br/>        print(&quot;先登陆&quot;)<br/>        s = requests.session()<br/>&gt;       login(s)<br/><br/>conftest.py:10: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x0000000004516B00&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/>---------------------------- Captured stdout setup -----------------------------<br/>先登陆
+</div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrqyht/test_get_companyusercenter.py::TestGetCompanyUserCenterPage::test_get_companyusercenter_36::setup</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">@pytest.fixture(scope=&quot;module&quot;)<br/>    def login_fix():<br/>        &#x27;&#x27;&#x27;自定义一个前置的操作&#x27;&#x27;&#x27;<br/>        print(&quot;先登陆&quot;)<br/>        s = requests.session()<br/>&gt;       login(s)<br/><br/>conftest.py:10: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x000000000454E048&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/>---------------------------- Captured stdout setup -----------------------------<br/>先登陆
+</div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_38::setup</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">@pytest.fixture(scope=&quot;module&quot;)<br/>    def login_fix():<br/>        &#x27;&#x27;&#x27;自定义一个前置的操作&#x27;&#x27;&#x27;<br/>        print(&quot;先登陆&quot;)<br/>        s = requests.session()<br/>&gt;       login(s)<br/><br/>conftest.py:10: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x0000000004695358&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/>---------------------------- Captured stdout setup -----------------------------<br/>先登陆
+</div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_42[40045-expect0]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">tp = &lt;class &#x27;TypeError&#x27;&gt;<br/>value = TypeError(&quot;&#x27;NoneType&#x27; object is not subscriptable&quot;,)<br/>tb = &lt;traceback object at 0x00000000046AA288&gt;<br/><br/>    def reraise(tp, value, tb=None):<br/>        if value is None:<br/>            value = tp()<br/>        if value.__traceback__ is not tb:<br/>&gt;           raise value.with_traceback(tb)<br/><br/>d:\python\lib\site-packages\six.py:685: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>conftest.py:10: in login_fix<br/>    login(s)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x0000000004695358&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_42[4.5-expect1]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">tp = &lt;class &#x27;TypeError&#x27;&gt;<br/>value = TypeError(&quot;&#x27;NoneType&#x27; object is not subscriptable&quot;,)<br/>tb = &lt;traceback object at 0x00000000046AA288&gt;<br/><br/>    def reraise(tp, value, tb=None):<br/>        if value is None:<br/>            value = tp()<br/>        if value.__traceback__ is not tb:<br/>&gt;           raise value.with_traceback(tb)<br/><br/>d:\python\lib\site-packages\six.py:685: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>conftest.py:10: in login_fix<br/>    login(s)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x0000000004695358&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_42[\u5f20\u4e09-expect2]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">tp = &lt;class &#x27;TypeError&#x27;&gt;<br/>value = TypeError(&quot;&#x27;NoneType&#x27; object is not subscriptable&quot;,)<br/>tb = &lt;traceback object at 0x00000000046AA288&gt;<br/><br/>    def reraise(tp, value, tb=None):<br/>        if value is None:<br/>            value = tp()<br/>        if value.__traceback__ is not tb:<br/>&gt;           raise value.with_traceback(tb)<br/><br/>d:\python\lib\site-packages\six.py:685: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>conftest.py:10: in login_fix<br/>    login(s)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x0000000004695358&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_42[!@-expect3]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">tp = &lt;class &#x27;TypeError&#x27;&gt;<br/>value = TypeError(&quot;&#x27;NoneType&#x27; object is not subscriptable&quot;,)<br/>tb = &lt;traceback object at 0x00000000046AA288&gt;<br/><br/>    def reraise(tp, value, tb=None):<br/>        if value is None:<br/>            value = tp()<br/>        if value.__traceback__ is not tb:<br/>&gt;           raise value.with_traceback(tb)<br/><br/>d:\python\lib\site-packages\six.py:685: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>conftest.py:10: in login_fix<br/>    login(s)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x0000000004695358&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_42[-4-expect4]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">tp = &lt;class &#x27;TypeError&#x27;&gt;<br/>value = TypeError(&quot;&#x27;NoneType&#x27; object is not subscriptable&quot;,)<br/>tb = &lt;traceback object at 0x00000000046AA288&gt;<br/><br/>    def reraise(tp, value, tb=None):<br/>        if value is None:<br/>            value = tp()<br/>        if value.__traceback__ is not tb:<br/>&gt;           raise value.with_traceback(tb)<br/><br/>d:\python\lib\site-packages\six.py:685: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>conftest.py:10: in login_fix<br/>    login(s)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x0000000004695358&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_43::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">tp = &lt;class &#x27;TypeError&#x27;&gt;<br/>value = TypeError(&quot;&#x27;NoneType&#x27; object is not subscriptable&quot;,)<br/>tb = &lt;traceback object at 0x00000000046AA288&gt;<br/><br/>    def reraise(tp, value, tb=None):<br/>        if value is None:<br/>            value = tp()<br/>        if value.__traceback__ is not tb:<br/>&gt;           raise value.with_traceback(tb)<br/><br/>d:\python\lib\site-packages\six.py:685: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>conftest.py:10: in login_fix<br/>    login(s)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x0000000004695358&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_44::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">tp = &lt;class &#x27;TypeError&#x27;&gt;<br/>value = TypeError(&quot;&#x27;NoneType&#x27; object is not subscriptable&quot;,)<br/>tb = &lt;traceback object at 0x00000000046AA288&gt;<br/><br/>    def reraise(tp, value, tb=None):<br/>        if value is None:<br/>            value = tp()<br/>        if value.__traceback__ is not tb:<br/>&gt;           raise value.with_traceback(tb)<br/><br/>d:\python\lib\site-packages\six.py:685: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>conftest.py:10: in login_fix<br/>    login(s)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>s = &lt;requests.sessions.Session object at 0x0000000004695358&gt;<br/><br/>    def login(s):<br/>        &#x27;&#x27;&#x27;登录获取token&#x27;&#x27;&#x27;<br/>        # s = requests.session()  # 会话  代码里面的浏览器，模拟浏览器的功能<br/>        url = &quot;http://114.115.153.29:9000/api/CompanyUser/CompanyUserLogin&quot;<br/>        body = {<br/>            &quot;Account&quot;: &quot;15812345678&quot;,<br/>            &quot;Pwd&quot;: &quot;123456&quot;<br/>        }<br/>    <br/>        # 转json<br/>        r = s.post(url, json=body)<br/>        # print(r.json())<br/>    <br/>        # token<br/>&gt;       token = r.json()[&quot;data&quot;][&quot;Token&quot;]<br/><span class="error">E       TypeError: &#x27;NoneType&#x27; object is not subscriptable</span><br/><br/>common_function.py:18: TypeError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">case/jzrqyht/test_get_companyusercenter.py::TestGetCompanyUserCenterPage::test_get_companyusercenter_37</td>
+          <td class="col-duration">0.18</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;case.jzrqyht.test_get_companyusercenter.TestGetCompanyUserCenterPage object at 0x00000000045635F8&gt;<br/>unlogin_fix = &lt;requests.sessions.Session object at 0x0000000004563518&gt;<br/><br/>    @allure.story(&quot;无法查询企业中心的用户信息的用例&quot;)<br/>    @allure.testcase(&quot;http://106.54.216.39:8088/zentao/testcase-view-37-0-testcase-0.html&quot;)<br/>    def test_get_companyusercenter_37(self, unlogin_fix):<br/>        &#x27;&#x27;&#x27;【用例描述】：查询企业中心的用户信息：头部传错误或失效的Token，提示登录失效<br/>        【前置条件】：头部传错误或失效的Token<br/>        【step1】：点击雇主品牌<br/>        【step2】：查看企业中心用户信息 -&gt; 提示登录失效&#x27;&#x27;&#x27;<br/>        # s = requests.session()<br/>        # s.headers.update({&quot;Authorization&quot;: &quot;Token f4b9a1dffbf525ecc93f8c80035c60fa546d5xxx&quot;})<br/>        step_1()<br/>&gt;       res = jzrqyht_api(unlogin_fix).get_companyusercenter()<br/><br/>jzrqyht\test_get_companyusercenter.py:35: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>apijzr\jzrqyht_class.py:12: in get_companyusercenter<br/>    return r.json()<br/>d:\python\lib\site-packages\requests\models.py:897: in json<br/>    return complexjson.loads(self.text, **kwargs)<br/>d:\python\lib\json\__init__.py:354: in loads<br/>    return _default_decoder.decode(s)<br/>d:\python\lib\json\decoder.py:339: in decode<br/>    obj, end = self.raw_decode(s, idx=_w(s, 0).end())<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>self = &lt;json.decoder.JSONDecoder object at 0x0000000003323B38&gt;<br/>s = &#x27;&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot; &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt; \n&lt;html...IIS70Error=404,0,0x80070002,14393&quot;&gt;查看详细信息 &amp;raquo;&lt;/a&gt;&lt;/p&gt; \n   \n &lt;/fieldset&gt; \n&lt;/div&gt; \n&lt;/div&gt; \n&lt;/body&gt; \n&lt;/html&gt; \n&#x27;<br/>idx = 0<br/><br/>    def raw_decode(self, s, idx=0):<br/>        &quot;&quot;&quot;Decode a JSON document from ``s`` (a ``str`` beginning with<br/>        a JSON document) and return a 2-tuple of the Python<br/>        representation and the index in ``s`` where the document ended.<br/>    <br/>        This can be used to decode a JSON document from a string that may<br/>        have extraneous data at the end.<br/>    <br/>        &quot;&quot;&quot;<br/>        try:<br/>            obj, end = self.scan_once(s, idx)<br/>        except StopIteration as err:<br/>&gt;           raise JSONDecodeError(&quot;Expecting value&quot;, s, err.value) from None<br/><span class="error">E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</span><br/><br/>d:\python\lib\json\decoder.py:357: JSONDecodeError<br/>---------------------------- Captured stdout setup -----------------------------<br/>不登陆
+----------------------------- Captured stdout call -----------------------------<br/>点击雇主品牌
+&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot; &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt; 
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt; 
+&lt;head&gt; 
+&lt;title&gt;IIS 10.0 详细错误 - 404.0 - Not Found&lt;/title&gt; 
+&lt;style type=&quot;text/css&quot;&gt; 
+&lt;!-- 
+body{margin:0;font-size:.7em;font-family:Verdana,Arial,Helvetica,sans-serif;} 
+code{margin:0;color:#006600;font-size:1.1em;font-weight:bold;} 
+.config_source code{font-size:.8em;color:#000000;} 
+pre{margin:0;font-size:1.4em;word-wrap:break-word;} 
+ul,ol{margin:10px 0 10px 5px;} 
+ul.first,ol.first{margin-top:5px;} 
+fieldset{padding:0 15px 10px 15px;word-break:break-all;} 
+.summary-container fieldset{padding-bottom:5px;margin-top:4px;} 
+legend.no-expand-all{padding:2px 15px 4px 10px;margin:0 0 0 -12px;} 
+legend{color:#333333;;margin:4px 0 8px -12px;_margin-top:0px; 
+font-weight:bold;font-size:1em;} 
+a:link,a:visited{color:#007EFF;font-weight:bold;} 
+a:hover{text-decoration:none;} 
+h1{font-size:2.4em;margin:0;color:#FFF;} 
+h2{font-size:1.7em;margin:0;color:#CC0000;} 
+h3{font-size:1.4em;margin:10px 0 0 0;color:#CC0000;} 
+h4{font-size:1.2em;margin:10px 0 5px 0; 
+}#header{width:96%;margin:0 0 0 0;padding:6px 2% 6px 2%;font-family:&quot;trebuchet MS&quot;,Verdana,sans-serif; 
+ color:#FFF;background-color:#5C87B2; 
+}#content{margin:0 0 0 2%;position:relative;} 
+.summary-container,.content-container{background:#FFF;width:96%;margin-top:8px;padding:10px;position:relative;} 
+.content-container p{margin:0 0 10px 0; 
+}#details-left{width:35%;float:left;margin-right:2%; 
+}#details-right{width:63%;float:left;overflow:hidden; 
+}#server_version{width:96%;_height:1px;min-height:1px;margin:0 0 5px 0;padding:11px 2% 8px 2%;color:#FFFFFF; 
+ background-color:#5A7FA5;border-bottom:1px solid #C1CFDD;border-top:1px solid #4A6C8E;font-weight:normal; 
+ font-size:1em;color:#FFF;text-align:right; 
+}#server_version p{margin:5px 0;} 
+table{margin:4px 0 4px 0;width:100%;border:none;} 
+td,th{vertical-align:top;padding:3px 0;text-align:left;font-weight:normal;border:none;} 
+th{width:30%;text-align:right;padding-right:2%;font-weight:bold;} 
+thead th{background-color:#ebebeb;width:25%; 
+}#details-right th{width:20%;} 
+table tr.alt td,table tr.alt th{} 
+.highlight-code{color:#CC0000;font-weight:bold;font-style:italic;} 
+.clear{clear:both;} 
+.preferred{padding:0 5px 2px 5px;font-weight:normal;background:#006633;color:#FFF;font-size:.8em;} 
+--&gt; 
+&lt;/style&gt; 
+ 
+&lt;/head&gt; 
+&lt;body&gt; 
+&lt;div id=&quot;content&quot;&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+  &lt;h3&gt;HTTP 错误 404.0 - Not Found&lt;/h3&gt; 
+  &lt;h4&gt;您要找的资源已被删除、已更名或暂时不可用。&lt;/h4&gt; 
+&lt;/div&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;最可能的原因:&lt;/h4&gt; 
+  &lt;ul&gt; 	&lt;li&gt;指定的目录或文件在 Web 服务器上不存在。&lt;/li&gt; 	&lt;li&gt;URL 拼写错误。&lt;/li&gt; 	&lt;li&gt;某个自定义筛选器或模块(如 URLScan)限制了对该文件的访问。&lt;/li&gt; &lt;/ul&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;可尝试的操作:&lt;/h4&gt; 
+  &lt;ul&gt; 	&lt;li&gt;在 Web 服务器上创建内容。&lt;/li&gt; 	&lt;li&gt;检查浏览器 URL。&lt;/li&gt; 	&lt;li&gt;创建跟踪规则以跟踪此 HTTP 状态代码的失败请求，并查看是哪个模块在调用 SetStatus。有关为失败的请求创建跟踪规则的详细信息，请单击&lt;a href=&quot;http://go.microsoft.com/fwlink/?LinkID=66439&quot;&gt;此处&lt;/a&gt;。&lt;/li&gt; &lt;/ul&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+ 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;详细错误信息:&lt;/h4&gt; 
+  &lt;div id=&quot;details-left&quot;&gt; 
+   &lt;table border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot;&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;模块&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;IIS Web Core&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;通知&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;MapRequestHandler&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;处理程序&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;StaticFile&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;错误代码&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;0x80070002&lt;/td&gt;&lt;/tr&gt; 
+     
+   &lt;/table&gt; 
+  &lt;/div&gt; 
+  &lt;div id=&quot;details-right&quot;&gt; 
+   &lt;table border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot;&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;请求的 URL&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;http://127.0.0.1:8002/api/CompanyUserCenter/GetCompanyUserCenter&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;物理路径&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;D:\Publish\建筑人招聘\管理后台V2.0\dist\api\CompanyUserCenter\GetCompanyUserCenter&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;登录方法&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;匿名&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;登录用户&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;匿名&lt;/td&gt;&lt;/tr&gt; 
+     
+   &lt;/table&gt; 
+   &lt;div class=&quot;clear&quot;&gt;&lt;/div&gt; 
+  &lt;/div&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+ 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;详细信息:&lt;/h4&gt; 
+  此错误表明文件或目录在服务器上不存在。请创建文件或目录并重新尝试请求。 
+  &lt;p&gt;&lt;a href=&quot;http://go.microsoft.com/fwlink/?LinkID=62293&amp;amp;IIS70Error=404,0,0x80070002,14393&quot;&gt;查看详细信息 &amp;raquo;&lt;/a&gt;&lt;/p&gt; 
+   
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+&lt;/div&gt; 
+&lt;/body&gt; 
+&lt;/html&gt; 
+
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_39</td>
+          <td class="col-duration">0.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">enterpriseId = 4<br/><br/>    @pytest.mark.web<br/>    @pytest.mark.webqyht<br/>    def test_get_enterpriseinfodetail_39(enterpriseId=4):<br/>        &#x27;&#x27;&#x27;查询企业中心的用户信息：头部不传Token，提示登录失效&#x27;&#x27;&#x27;<br/>        s = requests.session()<br/>&gt;       res = jzrqyht_api(s).get_enterpriseinfodetail(enterpriseId)<br/><br/>jzrqyht\test_get_enterpriseinfodetail.py:26: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>apijzr\jzrqyht_class.py:22: in get_enterpriseinfodetail<br/>    return r.json()<br/>d:\python\lib\site-packages\requests\models.py:897: in json<br/>    return complexjson.loads(self.text, **kwargs)<br/>d:\python\lib\json\__init__.py:354: in loads<br/>    return _default_decoder.decode(s)<br/>d:\python\lib\json\decoder.py:339: in decode<br/>    obj, end = self.raw_decode(s, idx=_w(s, 0).end())<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>self = &lt;json.decoder.JSONDecoder object at 0x0000000003323B38&gt;<br/>s = &#x27;&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot; &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt; \n&lt;html...IIS70Error=404,0,0x80070002,14393&quot;&gt;查看详细信息 &amp;raquo;&lt;/a&gt;&lt;/p&gt; \n   \n &lt;/fieldset&gt; \n&lt;/div&gt; \n&lt;/div&gt; \n&lt;/body&gt; \n&lt;/html&gt; \n&#x27;<br/>idx = 0<br/><br/>    def raw_decode(self, s, idx=0):<br/>        &quot;&quot;&quot;Decode a JSON document from ``s`` (a ``str`` beginning with<br/>        a JSON document) and return a 2-tuple of the Python<br/>        representation and the index in ``s`` where the document ended.<br/>    <br/>        This can be used to decode a JSON document from a string that may<br/>        have extraneous data at the end.<br/>    <br/>        &quot;&quot;&quot;<br/>        try:<br/>            obj, end = self.scan_once(s, idx)<br/>        except StopIteration as err:<br/>&gt;           raise JSONDecodeError(&quot;Expecting value&quot;, s, err.value) from None<br/><span class="error">E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</span><br/><br/>d:\python\lib\json\decoder.py:357: JSONDecodeError<br/>----------------------------- Captured stdout call -----------------------------<br/>&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot; &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt; 
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt; 
+&lt;head&gt; 
+&lt;title&gt;IIS 10.0 详细错误 - 404.0 - Not Found&lt;/title&gt; 
+&lt;style type=&quot;text/css&quot;&gt; 
+&lt;!-- 
+body{margin:0;font-size:.7em;font-family:Verdana,Arial,Helvetica,sans-serif;} 
+code{margin:0;color:#006600;font-size:1.1em;font-weight:bold;} 
+.config_source code{font-size:.8em;color:#000000;} 
+pre{margin:0;font-size:1.4em;word-wrap:break-word;} 
+ul,ol{margin:10px 0 10px 5px;} 
+ul.first,ol.first{margin-top:5px;} 
+fieldset{padding:0 15px 10px 15px;word-break:break-all;} 
+.summary-container fieldset{padding-bottom:5px;margin-top:4px;} 
+legend.no-expand-all{padding:2px 15px 4px 10px;margin:0 0 0 -12px;} 
+legend{color:#333333;;margin:4px 0 8px -12px;_margin-top:0px; 
+font-weight:bold;font-size:1em;} 
+a:link,a:visited{color:#007EFF;font-weight:bold;} 
+a:hover{text-decoration:none;} 
+h1{font-size:2.4em;margin:0;color:#FFF;} 
+h2{font-size:1.7em;margin:0;color:#CC0000;} 
+h3{font-size:1.4em;margin:10px 0 0 0;color:#CC0000;} 
+h4{font-size:1.2em;margin:10px 0 5px 0; 
+}#header{width:96%;margin:0 0 0 0;padding:6px 2% 6px 2%;font-family:&quot;trebuchet MS&quot;,Verdana,sans-serif; 
+ color:#FFF;background-color:#5C87B2; 
+}#content{margin:0 0 0 2%;position:relative;} 
+.summary-container,.content-container{background:#FFF;width:96%;margin-top:8px;padding:10px;position:relative;} 
+.content-container p{margin:0 0 10px 0; 
+}#details-left{width:35%;float:left;margin-right:2%; 
+}#details-right{width:63%;float:left;overflow:hidden; 
+}#server_version{width:96%;_height:1px;min-height:1px;margin:0 0 5px 0;padding:11px 2% 8px 2%;color:#FFFFFF; 
+ background-color:#5A7FA5;border-bottom:1px solid #C1CFDD;border-top:1px solid #4A6C8E;font-weight:normal; 
+ font-size:1em;color:#FFF;text-align:right; 
+}#server_version p{margin:5px 0;} 
+table{margin:4px 0 4px 0;width:100%;border:none;} 
+td,th{vertical-align:top;padding:3px 0;text-align:left;font-weight:normal;border:none;} 
+th{width:30%;text-align:right;padding-right:2%;font-weight:bold;} 
+thead th{background-color:#ebebeb;width:25%; 
+}#details-right th{width:20%;} 
+table tr.alt td,table tr.alt th{} 
+.highlight-code{color:#CC0000;font-weight:bold;font-style:italic;} 
+.clear{clear:both;} 
+.preferred{padding:0 5px 2px 5px;font-weight:normal;background:#006633;color:#FFF;font-size:.8em;} 
+--&gt; 
+&lt;/style&gt; 
+ 
+&lt;/head&gt; 
+&lt;body&gt; 
+&lt;div id=&quot;content&quot;&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+  &lt;h3&gt;HTTP 错误 404.0 - Not Found&lt;/h3&gt; 
+  &lt;h4&gt;您要找的资源已被删除、已更名或暂时不可用。&lt;/h4&gt; 
+&lt;/div&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;最可能的原因:&lt;/h4&gt; 
+  &lt;ul&gt; 	&lt;li&gt;指定的目录或文件在 Web 服务器上不存在。&lt;/li&gt; 	&lt;li&gt;URL 拼写错误。&lt;/li&gt; 	&lt;li&gt;某个自定义筛选器或模块(如 URLScan)限制了对该文件的访问。&lt;/li&gt; &lt;/ul&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;可尝试的操作:&lt;/h4&gt; 
+  &lt;ul&gt; 	&lt;li&gt;在 Web 服务器上创建内容。&lt;/li&gt; 	&lt;li&gt;检查浏览器 URL。&lt;/li&gt; 	&lt;li&gt;创建跟踪规则以跟踪此 HTTP 状态代码的失败请求，并查看是哪个模块在调用 SetStatus。有关为失败的请求创建跟踪规则的详细信息，请单击&lt;a href=&quot;http://go.microsoft.com/fwlink/?LinkID=66439&quot;&gt;此处&lt;/a&gt;。&lt;/li&gt; &lt;/ul&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+ 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;详细错误信息:&lt;/h4&gt; 
+  &lt;div id=&quot;details-left&quot;&gt; 
+   &lt;table border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot;&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;模块&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;IIS Web Core&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;通知&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;MapRequestHandler&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;处理程序&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;StaticFile&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;错误代码&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;0x80070002&lt;/td&gt;&lt;/tr&gt; 
+     
+   &lt;/table&gt; 
+  &lt;/div&gt; 
+  &lt;div id=&quot;details-right&quot;&gt; 
+   &lt;table border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot;&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;请求的 URL&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;http://127.0.0.1:8002/api/EnterpriseInfo/GetEnterpriseInfoDetail?enterpriseId=4&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;物理路径&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;D:\Publish\建筑人招聘\管理后台V2.0\dist\api\EnterpriseInfo\GetEnterpriseInfoDetail&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;登录方法&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;匿名&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;登录用户&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;匿名&lt;/td&gt;&lt;/tr&gt; 
+     
+   &lt;/table&gt; 
+   &lt;div class=&quot;clear&quot;&gt;&lt;/div&gt; 
+  &lt;/div&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+ 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;详细信息:&lt;/h4&gt; 
+  此错误表明文件或目录在服务器上不存在。请创建文件或目录并重新尝试请求。 
+  &lt;p&gt;&lt;a href=&quot;http://go.microsoft.com/fwlink/?LinkID=62293&amp;amp;IIS70Error=404,0,0x80070002,14393&quot;&gt;查看详细信息 &amp;raquo;&lt;/a&gt;&lt;/p&gt; 
+   
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+&lt;/div&gt; 
+&lt;/body&gt; 
+&lt;/html&gt; 
+
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_40</td>
+          <td class="col-duration">0.09</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">unlogin_fix = &lt;requests.sessions.Session object at 0x00000000046ED048&gt;<br/>enterpriseId = 4<br/><br/>    @pytest.mark.web<br/>    @pytest.mark.webqyht<br/>    def test_get_enterpriseinfodetail_40(unlogin_fix, enterpriseId=4):<br/>        &#x27;&#x27;&#x27;查询企业中心的用户信息：头部传错误或失效的Token，提示登录失效&#x27;&#x27;&#x27;<br/>        # s = requests.session()<br/>        # s.headers.update({&quot;Authorization&quot;: &quot;Token f4b9a1dffbf525ecc93f8c80035c60fa546d5xxx&quot;})<br/>&gt;       res = jzrqyht_api(unlogin_fix).get_enterpriseinfodetail(enterpriseId)<br/><br/>jzrqyht\test_get_enterpriseinfodetail.py:36: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>apijzr\jzrqyht_class.py:22: in get_enterpriseinfodetail<br/>    return r.json()<br/>d:\python\lib\site-packages\requests\models.py:897: in json<br/>    return complexjson.loads(self.text, **kwargs)<br/>d:\python\lib\json\__init__.py:354: in loads<br/>    return _default_decoder.decode(s)<br/>d:\python\lib\json\decoder.py:339: in decode<br/>    obj, end = self.raw_decode(s, idx=_w(s, 0).end())<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>self = &lt;json.decoder.JSONDecoder object at 0x0000000003323B38&gt;<br/>s = &#x27;&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot; &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt; \n&lt;html...IIS70Error=404,0,0x80070002,14393&quot;&gt;查看详细信息 &amp;raquo;&lt;/a&gt;&lt;/p&gt; \n   \n &lt;/fieldset&gt; \n&lt;/div&gt; \n&lt;/div&gt; \n&lt;/body&gt; \n&lt;/html&gt; \n&#x27;<br/>idx = 0<br/><br/>    def raw_decode(self, s, idx=0):<br/>        &quot;&quot;&quot;Decode a JSON document from ``s`` (a ``str`` beginning with<br/>        a JSON document) and return a 2-tuple of the Python<br/>        representation and the index in ``s`` where the document ended.<br/>    <br/>        This can be used to decode a JSON document from a string that may<br/>        have extraneous data at the end.<br/>    <br/>        &quot;&quot;&quot;<br/>        try:<br/>            obj, end = self.scan_once(s, idx)<br/>        except StopIteration as err:<br/>&gt;           raise JSONDecodeError(&quot;Expecting value&quot;, s, err.value) from None<br/><span class="error">E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</span><br/><br/>d:\python\lib\json\decoder.py:357: JSONDecodeError<br/>---------------------------- Captured stdout setup -----------------------------<br/>不登陆
+----------------------------- Captured stdout call -----------------------------<br/>&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot; &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt; 
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt; 
+&lt;head&gt; 
+&lt;title&gt;IIS 10.0 详细错误 - 404.0 - Not Found&lt;/title&gt; 
+&lt;style type=&quot;text/css&quot;&gt; 
+&lt;!-- 
+body{margin:0;font-size:.7em;font-family:Verdana,Arial,Helvetica,sans-serif;} 
+code{margin:0;color:#006600;font-size:1.1em;font-weight:bold;} 
+.config_source code{font-size:.8em;color:#000000;} 
+pre{margin:0;font-size:1.4em;word-wrap:break-word;} 
+ul,ol{margin:10px 0 10px 5px;} 
+ul.first,ol.first{margin-top:5px;} 
+fieldset{padding:0 15px 10px 15px;word-break:break-all;} 
+.summary-container fieldset{padding-bottom:5px;margin-top:4px;} 
+legend.no-expand-all{padding:2px 15px 4px 10px;margin:0 0 0 -12px;} 
+legend{color:#333333;;margin:4px 0 8px -12px;_margin-top:0px; 
+font-weight:bold;font-size:1em;} 
+a:link,a:visited{color:#007EFF;font-weight:bold;} 
+a:hover{text-decoration:none;} 
+h1{font-size:2.4em;margin:0;color:#FFF;} 
+h2{font-size:1.7em;margin:0;color:#CC0000;} 
+h3{font-size:1.4em;margin:10px 0 0 0;color:#CC0000;} 
+h4{font-size:1.2em;margin:10px 0 5px 0; 
+}#header{width:96%;margin:0 0 0 0;padding:6px 2% 6px 2%;font-family:&quot;trebuchet MS&quot;,Verdana,sans-serif; 
+ color:#FFF;background-color:#5C87B2; 
+}#content{margin:0 0 0 2%;position:relative;} 
+.summary-container,.content-container{background:#FFF;width:96%;margin-top:8px;padding:10px;position:relative;} 
+.content-container p{margin:0 0 10px 0; 
+}#details-left{width:35%;float:left;margin-right:2%; 
+}#details-right{width:63%;float:left;overflow:hidden; 
+}#server_version{width:96%;_height:1px;min-height:1px;margin:0 0 5px 0;padding:11px 2% 8px 2%;color:#FFFFFF; 
+ background-color:#5A7FA5;border-bottom:1px solid #C1CFDD;border-top:1px solid #4A6C8E;font-weight:normal; 
+ font-size:1em;color:#FFF;text-align:right; 
+}#server_version p{margin:5px 0;} 
+table{margin:4px 0 4px 0;width:100%;border:none;} 
+td,th{vertical-align:top;padding:3px 0;text-align:left;font-weight:normal;border:none;} 
+th{width:30%;text-align:right;padding-right:2%;font-weight:bold;} 
+thead th{background-color:#ebebeb;width:25%; 
+}#details-right th{width:20%;} 
+table tr.alt td,table tr.alt th{} 
+.highlight-code{color:#CC0000;font-weight:bold;font-style:italic;} 
+.clear{clear:both;} 
+.preferred{padding:0 5px 2px 5px;font-weight:normal;background:#006633;color:#FFF;font-size:.8em;} 
+--&gt; 
+&lt;/style&gt; 
+ 
+&lt;/head&gt; 
+&lt;body&gt; 
+&lt;div id=&quot;content&quot;&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+  &lt;h3&gt;HTTP 错误 404.0 - Not Found&lt;/h3&gt; 
+  &lt;h4&gt;您要找的资源已被删除、已更名或暂时不可用。&lt;/h4&gt; 
+&lt;/div&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;最可能的原因:&lt;/h4&gt; 
+  &lt;ul&gt; 	&lt;li&gt;指定的目录或文件在 Web 服务器上不存在。&lt;/li&gt; 	&lt;li&gt;URL 拼写错误。&lt;/li&gt; 	&lt;li&gt;某个自定义筛选器或模块(如 URLScan)限制了对该文件的访问。&lt;/li&gt; &lt;/ul&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;可尝试的操作:&lt;/h4&gt; 
+  &lt;ul&gt; 	&lt;li&gt;在 Web 服务器上创建内容。&lt;/li&gt; 	&lt;li&gt;检查浏览器 URL。&lt;/li&gt; 	&lt;li&gt;创建跟踪规则以跟踪此 HTTP 状态代码的失败请求，并查看是哪个模块在调用 SetStatus。有关为失败的请求创建跟踪规则的详细信息，请单击&lt;a href=&quot;http://go.microsoft.com/fwlink/?LinkID=66439&quot;&gt;此处&lt;/a&gt;。&lt;/li&gt; &lt;/ul&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+ 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;详细错误信息:&lt;/h4&gt; 
+  &lt;div id=&quot;details-left&quot;&gt; 
+   &lt;table border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot;&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;模块&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;IIS Web Core&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;通知&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;MapRequestHandler&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;处理程序&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;StaticFile&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;错误代码&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;0x80070002&lt;/td&gt;&lt;/tr&gt; 
+     
+   &lt;/table&gt; 
+  &lt;/div&gt; 
+  &lt;div id=&quot;details-right&quot;&gt; 
+   &lt;table border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot;&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;请求的 URL&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;http://127.0.0.1:8002/api/EnterpriseInfo/GetEnterpriseInfoDetail?enterpriseId=4&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;物理路径&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;D:\Publish\建筑人招聘\管理后台V2.0\dist\api\EnterpriseInfo\GetEnterpriseInfoDetail&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;登录方法&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;匿名&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;登录用户&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;匿名&lt;/td&gt;&lt;/tr&gt; 
+     
+   &lt;/table&gt; 
+   &lt;div class=&quot;clear&quot;&gt;&lt;/div&gt; 
+  &lt;/div&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+ 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;详细信息:&lt;/h4&gt; 
+  此错误表明文件或目录在服务器上不存在。请创建文件或目录并重新尝试请求。 
+  &lt;p&gt;&lt;a href=&quot;http://go.microsoft.com/fwlink/?LinkID=62293&amp;amp;IIS70Error=404,0,0x80070002,14393&quot;&gt;查看详细信息 &amp;raquo;&lt;/a&gt;&lt;/p&gt; 
+   
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+&lt;/div&gt; 
+&lt;/body&gt; 
+&lt;/html&gt; 
+
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">case/jzrqyht/test_get_enterpriseinfodetail.py::test_get_enterpriseinfodetail_41</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">unlogin_fix = &lt;requests.sessions.Session object at 0x000000000466E3C8&gt;<br/>enterpriseId = None<br/><br/>    @pytest.mark.web<br/>    @pytest.mark.webqyht<br/>    def test_get_enterpriseinfodetail_41(unlogin_fix,enterpriseId=None):<br/>        &#x27;&#x27;&#x27;查询企业中心的用户信息：params不传enterpriseId，无法查询到企业详情&#x27;&#x27;&#x27;<br/>&gt;       res = jzrqyht_api(unlogin_fix).get_enterpriseinfodetail(enterpriseId)<br/><br/>jzrqyht\test_get_enterpriseinfodetail.py:44: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>apijzr\jzrqyht_class.py:22: in get_enterpriseinfodetail<br/>    return r.json()<br/>d:\python\lib\site-packages\requests\models.py:897: in json<br/>    return complexjson.loads(self.text, **kwargs)<br/>d:\python\lib\json\__init__.py:354: in loads<br/>    return _default_decoder.decode(s)<br/>d:\python\lib\json\decoder.py:339: in decode<br/>    obj, end = self.raw_decode(s, idx=_w(s, 0).end())<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>self = &lt;json.decoder.JSONDecoder object at 0x0000000003323B38&gt;<br/>s = &#x27;&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot; &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt; \n&lt;html...IIS70Error=404,0,0x80070002,14393&quot;&gt;查看详细信息 &amp;raquo;&lt;/a&gt;&lt;/p&gt; \n   \n &lt;/fieldset&gt; \n&lt;/div&gt; \n&lt;/div&gt; \n&lt;/body&gt; \n&lt;/html&gt; \n&#x27;<br/>idx = 0<br/><br/>    def raw_decode(self, s, idx=0):<br/>        &quot;&quot;&quot;Decode a JSON document from ``s`` (a ``str`` beginning with<br/>        a JSON document) and return a 2-tuple of the Python<br/>        representation and the index in ``s`` where the document ended.<br/>    <br/>        This can be used to decode a JSON document from a string that may<br/>        have extraneous data at the end.<br/>    <br/>        &quot;&quot;&quot;<br/>        try:<br/>            obj, end = self.scan_once(s, idx)<br/>        except StopIteration as err:<br/>&gt;           raise JSONDecodeError(&quot;Expecting value&quot;, s, err.value) from None<br/><span class="error">E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</span><br/><br/>d:\python\lib\json\decoder.py:357: JSONDecodeError<br/>---------------------------- Captured stdout setup -----------------------------<br/>不登陆
+----------------------------- Captured stdout call -----------------------------<br/>&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.0 Strict//EN&quot; &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt; 
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt; 
+&lt;head&gt; 
+&lt;title&gt;IIS 10.0 详细错误 - 404.0 - Not Found&lt;/title&gt; 
+&lt;style type=&quot;text/css&quot;&gt; 
+&lt;!-- 
+body{margin:0;font-size:.7em;font-family:Verdana,Arial,Helvetica,sans-serif;} 
+code{margin:0;color:#006600;font-size:1.1em;font-weight:bold;} 
+.config_source code{font-size:.8em;color:#000000;} 
+pre{margin:0;font-size:1.4em;word-wrap:break-word;} 
+ul,ol{margin:10px 0 10px 5px;} 
+ul.first,ol.first{margin-top:5px;} 
+fieldset{padding:0 15px 10px 15px;word-break:break-all;} 
+.summary-container fieldset{padding-bottom:5px;margin-top:4px;} 
+legend.no-expand-all{padding:2px 15px 4px 10px;margin:0 0 0 -12px;} 
+legend{color:#333333;;margin:4px 0 8px -12px;_margin-top:0px; 
+font-weight:bold;font-size:1em;} 
+a:link,a:visited{color:#007EFF;font-weight:bold;} 
+a:hover{text-decoration:none;} 
+h1{font-size:2.4em;margin:0;color:#FFF;} 
+h2{font-size:1.7em;margin:0;color:#CC0000;} 
+h3{font-size:1.4em;margin:10px 0 0 0;color:#CC0000;} 
+h4{font-size:1.2em;margin:10px 0 5px 0; 
+}#header{width:96%;margin:0 0 0 0;padding:6px 2% 6px 2%;font-family:&quot;trebuchet MS&quot;,Verdana,sans-serif; 
+ color:#FFF;background-color:#5C87B2; 
+}#content{margin:0 0 0 2%;position:relative;} 
+.summary-container,.content-container{background:#FFF;width:96%;margin-top:8px;padding:10px;position:relative;} 
+.content-container p{margin:0 0 10px 0; 
+}#details-left{width:35%;float:left;margin-right:2%; 
+}#details-right{width:63%;float:left;overflow:hidden; 
+}#server_version{width:96%;_height:1px;min-height:1px;margin:0 0 5px 0;padding:11px 2% 8px 2%;color:#FFFFFF; 
+ background-color:#5A7FA5;border-bottom:1px solid #C1CFDD;border-top:1px solid #4A6C8E;font-weight:normal; 
+ font-size:1em;color:#FFF;text-align:right; 
+}#server_version p{margin:5px 0;} 
+table{margin:4px 0 4px 0;width:100%;border:none;} 
+td,th{vertical-align:top;padding:3px 0;text-align:left;font-weight:normal;border:none;} 
+th{width:30%;text-align:right;padding-right:2%;font-weight:bold;} 
+thead th{background-color:#ebebeb;width:25%; 
+}#details-right th{width:20%;} 
+table tr.alt td,table tr.alt th{} 
+.highlight-code{color:#CC0000;font-weight:bold;font-style:italic;} 
+.clear{clear:both;} 
+.preferred{padding:0 5px 2px 5px;font-weight:normal;background:#006633;color:#FFF;font-size:.8em;} 
+--&gt; 
+&lt;/style&gt; 
+ 
+&lt;/head&gt; 
+&lt;body&gt; 
+&lt;div id=&quot;content&quot;&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+  &lt;h3&gt;HTTP 错误 404.0 - Not Found&lt;/h3&gt; 
+  &lt;h4&gt;您要找的资源已被删除、已更名或暂时不可用。&lt;/h4&gt; 
+&lt;/div&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;最可能的原因:&lt;/h4&gt; 
+  &lt;ul&gt; 	&lt;li&gt;指定的目录或文件在 Web 服务器上不存在。&lt;/li&gt; 	&lt;li&gt;URL 拼写错误。&lt;/li&gt; 	&lt;li&gt;某个自定义筛选器或模块(如 URLScan)限制了对该文件的访问。&lt;/li&gt; &lt;/ul&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;可尝试的操作:&lt;/h4&gt; 
+  &lt;ul&gt; 	&lt;li&gt;在 Web 服务器上创建内容。&lt;/li&gt; 	&lt;li&gt;检查浏览器 URL。&lt;/li&gt; 	&lt;li&gt;创建跟踪规则以跟踪此 HTTP 状态代码的失败请求，并查看是哪个模块在调用 SetStatus。有关为失败的请求创建跟踪规则的详细信息，请单击&lt;a href=&quot;http://go.microsoft.com/fwlink/?LinkID=66439&quot;&gt;此处&lt;/a&gt;。&lt;/li&gt; &lt;/ul&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+ 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;详细错误信息:&lt;/h4&gt; 
+  &lt;div id=&quot;details-left&quot;&gt; 
+   &lt;table border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot;&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;模块&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;IIS Web Core&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;通知&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;MapRequestHandler&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;处理程序&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;StaticFile&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;错误代码&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;0x80070002&lt;/td&gt;&lt;/tr&gt; 
+     
+   &lt;/table&gt; 
+  &lt;/div&gt; 
+  &lt;div id=&quot;details-right&quot;&gt; 
+   &lt;table border=&quot;0&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot;&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;请求的 URL&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;http://127.0.0.1:8002/api/EnterpriseInfo/GetEnterpriseInfoDetail&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;物理路径&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;D:\Publish\建筑人招聘\管理后台V2.0\dist\api\EnterpriseInfo\GetEnterpriseInfoDetail&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr class=&quot;alt&quot;&gt;&lt;th&gt;登录方法&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;匿名&lt;/td&gt;&lt;/tr&gt; 
+    &lt;tr&gt;&lt;th&gt;登录用户&lt;/th&gt;&lt;td&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;匿名&lt;/td&gt;&lt;/tr&gt; 
+     
+   &lt;/table&gt; 
+   &lt;div class=&quot;clear&quot;&gt;&lt;/div&gt; 
+  &lt;/div&gt; 
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+ 
+&lt;div class=&quot;content-container&quot;&gt; 
+ &lt;fieldset&gt;&lt;h4&gt;详细信息:&lt;/h4&gt; 
+  此错误表明文件或目录在服务器上不存在。请创建文件或目录并重新尝试请求。 
+  &lt;p&gt;&lt;a href=&quot;http://go.microsoft.com/fwlink/?LinkID=62293&amp;amp;IIS70Error=404,0,0x80070002,14393&quot;&gt;查看详细信息 &amp;raquo;&lt;/a&gt;&lt;/p&gt; 
+   
+ &lt;/fieldset&gt; 
+&lt;/div&gt; 
+&lt;/div&gt; 
+&lt;/body&gt; 
+&lt;/html&gt; 
+
+</div></td></tr></tbody></table></body></html>

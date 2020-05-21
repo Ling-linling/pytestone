@@ -1,0 +1,3 @@
+先登陆
+取出Token:WqBle6pVdjEhn/6BQC0uIiMNpEBYTQwycyFnjB8yP/GSVrWkGAmUhonR2wx3RRV2Bxq77j5tQ8eM=
+{"data":[{"Id":14,"Title":"环境工程","Value":"环境工程"},{"Id":13,"Title":"造价","Value":"造价"},{"Id":12,"Title":"监理","Value":"监理"},{"Id":11,"Title":"钢结构","Value":"钢结构"},{"Id":10,"Title":"水利水电","Value":"水利水电"},{"Id":9,"Title":"城市轨道交通","Value":"城市轨道交通"},{"Id":8,"Title":"铁路桥梁","Value":"铁路桥梁"},{"Id":6,"Title":"市政公用","Value":"市政公用"},{"Id":5,"Title":"园林景观","Value":"园林景观"},{"Id":4,"Title":"物业地产","Value":"物业地产"},{"Id":3,"Title":"装修装饰","Value":"装修装饰"},{"Id":2,"Title":"建筑设计","Value":"建筑设计"},{"Id":1,"Title":"工程施工","Value":"工程施工"}],"msg":"成功","code":10000}

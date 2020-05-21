@@ -1,0 +1,4 @@
+先登陆
+取出Token:5RgQZ7Lm5eErVh8pOFLiGgdlD5s6jlTRAwadp/UJmjP9PgEPKLC33KNhbxnSRr6dyIlO86ZLjIc=
+点击雇主品牌
+{"data":{"UserId":4,"PId":0,"ContactPersonName":"李","CompanyName":"小草公司","CompanyAbbreviation":"小草公司","PublicPositonCount":1,"ReceiveResumeCount":0,"Level":null,"VilidityDateTime":"2019-12-20T16:31:11.3","VilidityDateTimeShow":"2019-12-20","Balances":0.0,"LogoImageId":2,"CompanyLogo":{"Id":2,"ComId":0,"FileName":"企业默认logo","OriginalRelativePath":"/Upload/JZRZP_0/comDefaultLogo.png","ThumbnailRelativePath":"/Upload/JZRZP_0/comDefaultLogo.png","FileType":1,"Type":1}},"msg":"成功","code":10000}

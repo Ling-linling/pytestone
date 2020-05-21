@@ -1,0 +1,2 @@
+newgetbykey:
+- ["text/xml", {"Message":"此资源不支持请求实体的媒体类型“text/xml”}]
